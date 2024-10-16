@@ -127,12 +127,59 @@ plot(Effect(c("stressconds", "mindsetconds", "bothmindsets.baseline"), mod_tpr_i
 
 require(brms)
 
-brm_tpr_factors_unadjusted <- brm(tpr_react_mc_z ~ stressonly + msonly + synergistic + (1 | pid), data = dat_long[dat_long$time %in% c(9, 10, 11, 12, 13), ])
-plot(brm_tpr_factors_unadjusted)
-summary(brm_tpr_factors_unadjusted)
+## Bayesian comparison
+# Synergistic vs growth (Mindset)
 
-draws_fit <- as_draws_array(brm_tpr_factors_unadjusted)
+dat_long <- dat_long %>%
+  mutate(cond.factor = factor(cond.factor)) %>%
+  mutate(cond.factor = relevel(cond.factor, ref = "Mindset"))
 
-brm_tpr_interaction_unadjusted <- brm(tpr_react_mc_z ~ stressconds * mindsetconds + (1 | pid), data = dat_long[dat_long$time %in% c(9, 10, 11, 12, 13), ])
-plot(brm_tpr_interaction_unadjusted)
-summary(brm_tpr_interaction_unadjusted)
+brm_tpr_factors_growth <- brm(tpr_react_mc_z ~ cond.factor + (1 | pid),
+                              data = dat_long[dat_long$time %in% c(9, 10, 11, 12, 13), ],
+                              iter = 4000, warmup = 2000)
+
+summary(brm_tpr_factors_growth)
+results_Synergisticvsgrowth <- posterior_summary(brm_tpr_factors_growth)
+
+# Synergistic vs Stress
+
+dat_long <- dat_long %>% mutate(cond.factor = relevel(cond.factor, ref = "Stress"))
+
+brm_tpr_factors_stress <- brm(tpr_react_mc_z ~ cond.factor + (1 | pid),
+                              data = dat_long[dat_long$time %in% c(9, 10, 11, 12, 13), ],
+                              iter = 4000, warmup = 2000)
+
+summary(brm_tpr_factors_stress)
+results_Synergisticvsstress <- posterior_summary(brm_tpr_factors_stress)
+
+# Synergistic vs Control
+
+dat_long <- dat_long %>% mutate(cond.factor = relevel(cond.factor, ref = "Control"))
+
+brm_tpr_factors_control <- brm(tpr_react_mc_z ~ cond.factor + (1 | pid),
+                               data = dat_long[dat_long$time %in% c(9, 10, 11, 12, 13), ],
+                               iter = 4000, warmup = 2000)
+
+summary(brm_tpr_factors_control)
+results_Synergisticvscontrol <- posterior_summary(brm_tpr_factors_control)
+
+## Table comparisons
+table_comparisons   <- data.frame(
+  Comparison = c("Synergistic vs Growth", 
+                 "Synergistic vs stress",
+                 "Synergistic vs control",
+                 "Stress vs control",
+                 "Growth vs control"),
+  Estimate = c(round(results_Synergisticvsgrowth["b_cond.factorSynergistic", "Estimate"], 2),
+               round(results_Synergisticvsstress["b_cond.factorSynergistic", "Estimate"], 2),
+               round(results_Synergisticvscontrol["b_cond.factorSynergistic", "Estimate"], 2),
+               round(results_Synergisticvscontrol["b_cond.factorStress", "Estimate"], 2),
+               round(results_Synergisticvscontrol["b_cond.factorMindset", "Estimate"], 2)),
+  CI_95 = c(paste0("[",round(results_Synergisticvsgrowth["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(results_Synergisticvsgrowth["b_cond.factorSynergistic", "Q97.5"],2),"]"),
+            paste0("[",round(results_Synergisticvsstress["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(results_Synergisticvsstress["b_cond.factorSynergistic", "Q97.5"],2),"]"),
+            paste0("[",round(results_Synergisticvscontrol["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(results_Synergisticvscontrol["b_cond.factorSynergistic", "Q97.5"],2),"]"),
+            paste0("[",round(results_Synergisticvscontrol["b_cond.factorStress", "Q2.5"], 2), ";", round(results_Synergisticvscontrol["b_cond.factorStress", "Q97.5"],2),"]"),
+            paste0("[",round(results_Synergisticvscontrol["b_cond.factorMindset", "Q2.5"], 2), ";", round(results_Synergisticvscontrol["b_cond.factorMindset", "Q97.5"],2),"]")))
+
+print(table_comparisons)
+
