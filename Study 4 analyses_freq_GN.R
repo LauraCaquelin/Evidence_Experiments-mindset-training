@@ -126,6 +126,8 @@ plot(Effect(c("stressconds", "mindsetconds", "bothmindsets.baseline"), mod_tpr_i
 ### Testing!
 
 require(brms)
+library(lmerTest)
+library(broom.mixed)
 
 ## Bayesian comparison
 # Synergistic vs growth (Mindset)
@@ -139,7 +141,7 @@ brm_tpr_factors_growth <- brm(tpr_react_mc_z ~ cond.factor + (1 | pid),
                               iter = 4000, warmup = 2000)
 
 summary(brm_tpr_factors_growth)
-results_Synergisticvsgrowth <- posterior_summary(brm_tpr_factors_growth)
+resultsbrm_Synergisticvsgrowth <- posterior_summary(brm_tpr_factors_growth)
 
 # Synergistic vs Stress
 
@@ -150,7 +152,7 @@ brm_tpr_factors_stress <- brm(tpr_react_mc_z ~ cond.factor + (1 | pid),
                               iter = 4000, warmup = 2000)
 
 summary(brm_tpr_factors_stress)
-results_Synergisticvsstress <- posterior_summary(brm_tpr_factors_stress)
+resultsbrm_Synergisticvsstress <- posterior_summary(brm_tpr_factors_stress)
 
 # Synergistic vs Control
 
@@ -161,25 +163,81 @@ brm_tpr_factors_control <- brm(tpr_react_mc_z ~ cond.factor + (1 | pid),
                                iter = 4000, warmup = 2000)
 
 summary(brm_tpr_factors_control)
-results_Synergisticvscontrol <- posterior_summary(brm_tpr_factors_control)
+resultsbrm_Synergisticvscontrol <- posterior_summary(brm_tpr_factors_control)
 
-## Table comparisons
+# Table comparisons
 table_comparisons   <- data.frame(
   Comparison = c("Synergistic vs Growth", 
                  "Synergistic vs stress",
                  "Synergistic vs control",
                  "Stress vs control",
                  "Growth vs control"),
-  Estimate = c(round(results_Synergisticvsgrowth["b_cond.factorSynergistic", "Estimate"], 2),
-               round(results_Synergisticvsstress["b_cond.factorSynergistic", "Estimate"], 2),
-               round(results_Synergisticvscontrol["b_cond.factorSynergistic", "Estimate"], 2),
-               round(results_Synergisticvscontrol["b_cond.factorStress", "Estimate"], 2),
-               round(results_Synergisticvscontrol["b_cond.factorMindset", "Estimate"], 2)),
-  CI_95 = c(paste0("[",round(results_Synergisticvsgrowth["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(results_Synergisticvsgrowth["b_cond.factorSynergistic", "Q97.5"],2),"]"),
-            paste0("[",round(results_Synergisticvsstress["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(results_Synergisticvsstress["b_cond.factorSynergistic", "Q97.5"],2),"]"),
-            paste0("[",round(results_Synergisticvscontrol["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(results_Synergisticvscontrol["b_cond.factorSynergistic", "Q97.5"],2),"]"),
-            paste0("[",round(results_Synergisticvscontrol["b_cond.factorStress", "Q2.5"], 2), ";", round(results_Synergisticvscontrol["b_cond.factorStress", "Q97.5"],2),"]"),
-            paste0("[",round(results_Synergisticvscontrol["b_cond.factorMindset", "Q2.5"], 2), ";", round(results_Synergisticvscontrol["b_cond.factorMindset", "Q97.5"],2),"]")))
+  Estimate = c(round(resultsbrm_Synergisticvsgrowth["b_cond.factorSynergistic", "Estimate"], 2),
+               round(resultsbrm_Synergisticvsstress["b_cond.factorSynergistic", "Estimate"], 2),
+               round(resultsbrm_Synergisticvscontrol["b_cond.factorSynergistic", "Estimate"], 2),
+               round(resultsbrm_Synergisticvscontrol["b_cond.factorStress", "Estimate"], 2),
+               round(resultsbrm_Synergisticvscontrol["b_cond.factorMindset", "Estimate"], 2)),
+  CI_95 = c(paste0("[",round(resultsbrm_Synergisticvsgrowth["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(resultsbrm_Synergisticvsgrowth["b_cond.factorSynergistic", "Q97.5"],2),"]"),
+            paste0("[",round(resultsbrm_Synergisticvsstress["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(resultsbrm_Synergisticvsstress["b_cond.factorSynergistic", "Q97.5"],2),"]"),
+            paste0("[",round(resultsbrm_Synergisticvscontrol["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(resultsbrm_Synergisticvscontrol["b_cond.factorSynergistic", "Q97.5"],2),"]"),
+            paste0("[",round(resultsbrm_Synergisticvscontrol["b_cond.factorStress", "Q2.5"], 2), ";", round(resultsbrm_Synergisticvscontrol["b_cond.factorStress", "Q97.5"],2),"]"),
+            paste0("[",round(resultsbrm_Synergisticvscontrol["b_cond.factorMindset", "Q2.5"], 2), ";", round(resultsbrm_Synergisticvscontrol["b_cond.factorMindset", "Q97.5"],2),"]")))
 
 print(table_comparisons)
+
+## Frequentist analysis
+# Synergistic vs growth (Mindset)
+
+dat_long <- dat_long %>% mutate(cond.factor = relevel(cond.factor, ref = "Mindset"))
+
+lmer_tpr_factors_growth <- lmerTest::lmer(tpr_react_mc_z ~ cond.factor + (1 | pid),
+                                          data = dat_long %>% filter(time %in% c(9, 10, 11, 12, 13)))
+
+summary(lmer_tpr_factors_growth)
+
+# Synergistic vs Stress
+
+dat_long <- dat_long %>% mutate(cond.factor = relevel(cond.factor, ref = "Stress"))
+
+lmer_tpr_factors_stress <- lmer(tpr_react_mc_z ~ cond.factor + (1 | pid),
+                                data = dat_long %>% filter(time %in% c(9, 10, 11, 12, 13)))
+
+summary(lmer_tpr_factors_stress)
+
+# Synergistic vs Control
+
+dat_long <- dat_long %>% mutate(cond.factor = relevel(cond.factor, ref = "Control"))
+
+lmer_tpr_factors_control <- lmer(tpr_react_mc_z ~ cond.factor + (1 | pid),
+                                 data = dat_long %>% filter(time %in% c(9, 10, 11, 12, 13)))
+
+summary(lmer_tpr_factors_control)
+
+# Table comparisons
+# Function to extract results 
+
+table_results <- function(model, comparison_label, target_comparison) {
+  results <- tidy(model, conf.int = TRUE, conf.level = 0.95) %>%
+    filter(term == paste0("cond.factor", target_comparison)) %>% # Exclusion intercept
+    mutate(
+      Comparison = comparison_label,
+      `Confidence interval` = paste0("[", round(conf.low, 2), "; ", round(conf.high, 2), "]"),
+      Estimate = round(estimate, 2),
+      pvalue = round(p.value, 3)) %>%
+    select(Comparison, Estimate, `Confidence interval`, pvalue)
+  
+  return(results)
+}
+
+# Apply function
+final_table_lmer <- bind_rows(
+  table_results(lmer_tpr_factors_growth, "Synergistic vs Growth", "Synergistic"),
+  table_results(lmer_tpr_factors_stress, "Synergistic vs Stress", "Synergistic"),
+  table_results(lmer_tpr_factors_control, "Synergistic vs Control", "Synergistic"),
+  table_results(lmer_tpr_factors_control, "Stress vs Control", "Stress"),
+  table_results(lmer_tpr_factors_control, "Growth vs Control", "Mindset"))
+
+
+print(final_table_lmer)
+
 
