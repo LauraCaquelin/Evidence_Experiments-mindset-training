@@ -12,6 +12,9 @@ library(lme4)
 #library(multibart) # Not able to install
 library(tidyverse)
 library(effects)
+require(brms)
+library(lmerTest)
+library(broom.mixed)
 
 # Read data
 dat_long <- read_csv("study4long.csv")
@@ -121,16 +124,39 @@ plot(mod_tpr_interaction_hte1)
 confint(mod_tpr_interaction_hte1)
 plot(Effect(c("stressconds", "mindsetconds", "bothmindsets.baseline"), mod_tpr_interaction_hte1))
 
+### Plot mean TPR at baseline and after
+## Mean tpr by condition and time
+mean_tpr <- dat_long %>%
+  filter(epoch %in% c("baseline", "speech")) %>% 
+  group_by(cond.factor, epoch) %>%
+  summarise(mean_TPR = mean(tpr, na.rm = TRUE),
+            se_TPR = sd(tpr, na.rm = TRUE) / sqrt(n()))
 
+## Plot
+plot1 <- ggplot(mean_tpr, aes(x = epoch, y = mean_TPR, color = cond.factor, group = cond.factor)) +
+  geom_line(size = 1) +
+  geom_point(size = 2) +
+  geom_errorbar(aes(ymin = mean_TPR - se_TPR, ymax = mean_TPR + se_TPR), width = 0.05) + 
+  scale_x_discrete(labels = c("baseline" = "Baseline", "speech" = "Post")) + 
+  scale_color_manual(values = c("#488f31", "#2C3E50", "#F4A300", "#F4665C")) +  
+  scale_fill_manual(values = c("#488f31", "#2C3E50", "#F4A300", "#F4665C")) +
+  labs(x = "Time",
+       y = "Mean TPR",
+       color = "Condition", 
+       fill = "Condition") +
+  theme_minimal() + 
+  theme(legend.position = "top",
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 10),
+        panel.grid = element_blank(), 
+        axis.line = element_line(size = 0.1),
+        axis.ticks = element_line(size = 0.1))
+  
+ggsave(filename = "Plot_meanTPR_baselinevspost.png",plot = plot1, width = 8, height = 6, dpi = 300)
 
-### Testing!
-
-require(brms)
-library(lmerTest)
-library(broom.mixed)
-
+### Pairwise analysis
 ## Bayesian comparison
-# Synergistic vs growth (Mindset)
+# Synergistic/Stress vs growth (Mindset)
 
 dat_long <- dat_long %>%
   mutate(cond.factor = factor(cond.factor)) %>%
@@ -140,57 +166,78 @@ brm_tpr_factors_growth <- brm(tpr_react_mc_z ~ cond.factor + (1 | pid),
                               data = dat_long[dat_long$time %in% c(9, 10, 11, 12, 13), ],
                               iter = 4000, warmup = 2000)
 
-summary(brm_tpr_factors_growth)
-resultsbrm_Synergisticvsgrowth <- posterior_summary(brm_tpr_factors_growth)
+#Addition of more iteration due to adjustment
+brm_tpr_factors_growth_adjusted <- brm(tpr_react_mc_z ~ cond.factor + s1.sex + s1.age + racefactor + pss.baseline + 
+                                         stressmindset.baseline + fixedmindset.baseline +
+                                         bothmindsets.baseline + selfesteem.baseline +
+                                         testanxiety.baseline + (1 | pid),
+                                       data = dat_long[dat_long$time %in% c(9, 10, 11, 12, 13), ],
+                                       iter = 6000, warmup = 3000)
+
+summary(brm_tpr_factors_growth_adjusted)
+resultsbrm_SynergisticStressvsgrowth <- posterior_summary(brm_tpr_factors_growth_adjusted)
 
 # Synergistic vs Stress
 
 dat_long <- dat_long %>% mutate(cond.factor = relevel(cond.factor, ref = "Stress"))
 
-brm_tpr_factors_stress <- brm(tpr_react_mc_z ~ cond.factor + (1 | pid),
-                              data = dat_long[dat_long$time %in% c(9, 10, 11, 12, 13), ],
-                              iter = 4000, warmup = 2000)
+brm_tpr_factors_stress_adjusted <- brm(tpr_react_mc_z ~ cond.factor + s1.sex + s1.age + racefactor + pss.baseline + 
+                                         stressmindset.baseline + fixedmindset.baseline +
+                                         bothmindsets.baseline + selfesteem.baseline +
+                                         testanxiety.baseline + (1 | pid),
+                                       data = dat_long[dat_long$time %in% c(9, 10, 11, 12, 13), ],
+                                       iter = 6000, warmup = 3000)
 
-summary(brm_tpr_factors_stress)
-resultsbrm_Synergisticvsstress <- posterior_summary(brm_tpr_factors_stress)
+summary(brm_tpr_factors_stress_adjusted)
+resultsbrm_Synergisticvsstress <- posterior_summary(brm_tpr_factors_stress_adjusted)
 
-# Synergistic vs Control
+# Synergistic/Stress/Growth vs Control
 
 dat_long <- dat_long %>% mutate(cond.factor = relevel(cond.factor, ref = "Control"))
 
-brm_tpr_factors_control <- brm(tpr_react_mc_z ~ cond.factor + (1 | pid),
-                               data = dat_long[dat_long$time %in% c(9, 10, 11, 12, 13), ],
-                               iter = 4000, warmup = 2000)
+brm_tpr_factors_control_adjusted <- brm(tpr_react_mc_z ~ cond.factor + s1.sex + s1.age + racefactor + pss.baseline + 
+                                          stressmindset.baseline + fixedmindset.baseline +
+                                          bothmindsets.baseline + selfesteem.baseline +
+                                          testanxiety.baseline + (1 | pid),
+                                        data = dat_long[dat_long$time %in% c(9, 10, 11, 12, 13), ],
+                                        iter = 6000, warmup = 3000)
 
-summary(brm_tpr_factors_control)
-resultsbrm_Synergisticvscontrol <- posterior_summary(brm_tpr_factors_control)
+summary(brm_tpr_factors_control_adjusted)
+resultsbrm_SynergisticStressGrowthvscontrol <- posterior_summary(brm_tpr_factors_control_adjusted)
+
 
 # Table comparisons
-table_comparisons   <- data.frame(
-  Comparison = c("Synergistic vs Growth", 
+final_table_bayesian   <- data.frame(
+  Comparison = c("Synergistic vs growth", 
                  "Synergistic vs stress",
                  "Synergistic vs control",
                  "Stress vs control",
-                 "Growth vs control"),
-  Estimate = c(round(resultsbrm_Synergisticvsgrowth["b_cond.factorSynergistic", "Estimate"], 2),
+                 "Growth vs control", 
+                 "Stress vs growth"),
+  Estimate = c(round(resultsbrm_SynergisticStressvsgrowth["b_cond.factorSynergistic", "Estimate"], 2),
                round(resultsbrm_Synergisticvsstress["b_cond.factorSynergistic", "Estimate"], 2),
-               round(resultsbrm_Synergisticvscontrol["b_cond.factorSynergistic", "Estimate"], 2),
-               round(resultsbrm_Synergisticvscontrol["b_cond.factorStress", "Estimate"], 2),
-               round(resultsbrm_Synergisticvscontrol["b_cond.factorMindset", "Estimate"], 2)),
-  CI_95 = c(paste0("[",round(resultsbrm_Synergisticvsgrowth["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(resultsbrm_Synergisticvsgrowth["b_cond.factorSynergistic", "Q97.5"],2),"]"),
+               round(resultsbrm_SynergisticStressGrowthvscontrol["b_cond.factorSynergistic", "Estimate"], 2),
+               round(resultsbrm_SynergisticStressGrowthvscontrol["b_cond.factorStress", "Estimate"], 2),
+               round(resultsbrm_SynergisticStressGrowthvscontrol["b_cond.factorMindset", "Estimate"], 2),
+               round(resultsbrm_SynergisticStressvsgrowth["b_cond.factorStress", "Estimate"], 2)),
+  CI_95 = c(paste0("[",round(resultsbrm_SynergisticStressvsgrowth["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(resultsbrm_SynergisticStressvsgrowth["b_cond.factorSynergistic", "Q97.5"],2),"]"),
             paste0("[",round(resultsbrm_Synergisticvsstress["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(resultsbrm_Synergisticvsstress["b_cond.factorSynergistic", "Q97.5"],2),"]"),
-            paste0("[",round(resultsbrm_Synergisticvscontrol["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(resultsbrm_Synergisticvscontrol["b_cond.factorSynergistic", "Q97.5"],2),"]"),
-            paste0("[",round(resultsbrm_Synergisticvscontrol["b_cond.factorStress", "Q2.5"], 2), ";", round(resultsbrm_Synergisticvscontrol["b_cond.factorStress", "Q97.5"],2),"]"),
-            paste0("[",round(resultsbrm_Synergisticvscontrol["b_cond.factorMindset", "Q2.5"], 2), ";", round(resultsbrm_Synergisticvscontrol["b_cond.factorMindset", "Q97.5"],2),"]")))
+            paste0("[",round(resultsbrm_SynergisticStressGrowthvscontrol["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(resultsbrm_SynergisticStressGrowthvscontrol["b_cond.factorSynergistic", "Q97.5"],2),"]"),
+            paste0("[",round(resultsbrm_SynergisticStressGrowthvscontrol["b_cond.factorStress", "Q2.5"], 2), ";", round(resultsbrm_SynergisticStressGrowthvscontrol["b_cond.factorStress", "Q97.5"],2),"]"),
+            paste0("[",round(resultsbrm_SynergisticStressGrowthvscontrol["b_cond.factorMindset", "Q2.5"], 2), ";", round(resultsbrm_SynergisticStressGrowthvscontrol["b_cond.factorMindset", "Q97.5"],2),"]"),
+            paste0("[",round(resultsbrm_SynergisticStressvsgrowth["b_cond.factorStress", "Q2.5"], 2), ";", round(resultsbrm_SynergisticStressvsgrowth["b_cond.factorStress", "Q97.5"],2),"]")))
 
-print(table_comparisons)
+print(final_table_bayesian )
 
 ## Frequentist analysis
-# Synergistic vs growth (Mindset)
+# Synergistic/Stress vs growth (Mindset)
 
 dat_long <- dat_long %>% mutate(cond.factor = relevel(cond.factor, ref = "Mindset"))
 
-lmer_tpr_factors_growth <- lmerTest::lmer(tpr_react_mc_z ~ cond.factor + (1 | pid),
+lmer_tpr_factors_growth <- lmerTest::lmer(tpr_react_mc_z ~ cond.factor + s1.sex + s1.age + racefactor + pss.baseline + 
+                                            stressmindset.baseline + fixedmindset.baseline +
+                                            bothmindsets.baseline + selfesteem.baseline +
+                                            testanxiety.baseline + (1 | pid),
                                           data = dat_long %>% filter(time %in% c(9, 10, 11, 12, 13)))
 
 summary(lmer_tpr_factors_growth)
@@ -199,16 +246,22 @@ summary(lmer_tpr_factors_growth)
 
 dat_long <- dat_long %>% mutate(cond.factor = relevel(cond.factor, ref = "Stress"))
 
-lmer_tpr_factors_stress <- lmer(tpr_react_mc_z ~ cond.factor + (1 | pid),
+lmer_tpr_factors_stress <- lmer(tpr_react_mc_z ~ cond.factor + s1.sex + s1.age + racefactor + pss.baseline + 
+                                  stressmindset.baseline + fixedmindset.baseline +
+                                  bothmindsets.baseline + selfesteem.baseline +
+                                  testanxiety.baseline + (1 | pid),
                                 data = dat_long %>% filter(time %in% c(9, 10, 11, 12, 13)))
 
 summary(lmer_tpr_factors_stress)
 
-# Synergistic vs Control
+# Synergistic/Stress/Growth vs Control
 
 dat_long <- dat_long %>% mutate(cond.factor = relevel(cond.factor, ref = "Control"))
 
-lmer_tpr_factors_control <- lmer(tpr_react_mc_z ~ cond.factor + (1 | pid),
+lmer_tpr_factors_control <- lmer(tpr_react_mc_z ~ cond.factor + s1.sex + s1.age + racefactor + pss.baseline + 
+                                   stressmindset.baseline + fixedmindset.baseline +
+                                   bothmindsets.baseline + selfesteem.baseline +
+                                   testanxiety.baseline + (1 | pid),
                                  data = dat_long %>% filter(time %in% c(9, 10, 11, 12, 13)))
 
 summary(lmer_tpr_factors_control)
@@ -218,7 +271,7 @@ summary(lmer_tpr_factors_control)
 
 table_results <- function(model, comparison_label, target_comparison) {
   results <- tidy(model, conf.int = TRUE, conf.level = 0.95) %>%
-    filter(term == paste0("cond.factor", target_comparison)) %>% # Exclusion intercept
+    filter(term == target_comparison) %>% # Exclusion intercept
     mutate(
       Comparison = comparison_label,
       `Confidence interval` = paste0("[", round(conf.low, 2), "; ", round(conf.high, 2), "]"),
@@ -231,13 +284,55 @@ table_results <- function(model, comparison_label, target_comparison) {
 
 # Apply function
 final_table_lmer <- bind_rows(
-  table_results(lmer_tpr_factors_growth, "Synergistic vs Growth", "Synergistic"),
-  table_results(lmer_tpr_factors_stress, "Synergistic vs Stress", "Synergistic"),
-  table_results(lmer_tpr_factors_control, "Synergistic vs Control", "Synergistic"),
-  table_results(lmer_tpr_factors_control, "Stress vs Control", "Stress"),
-  table_results(lmer_tpr_factors_control, "Growth vs Control", "Mindset"))
+  table_results(lmer_tpr_factors_growth, "Synergistic vs Growth", "cond.factorSynergistic"),
+  table_results(lmer_tpr_factors_stress, "Synergistic vs Stress", "cond.factorSynergistic"),
+  table_results(lmer_tpr_factors_control, "Synergistic vs Control", "cond.factorSynergistic"),
+  table_results(lmer_tpr_factors_control, "Stress vs Control", "cond.factorStress"),
+  table_results(lmer_tpr_factors_control, "Growth vs Control", "cond.factorMindset"),
+  table_results(lmer_tpr_factors_growth, "Stress vs Growth", "cond.factorStress"))
 
+# Apply FDR correction to pvalue 
+final_table_lmer <- final_table_lmer %>%
+  mutate(p_adjusted = p.adjust(pvalue, method = "fdr"))
 
 print(final_table_lmer)
 
+### Interactions analysis
+## Bayesian analysis
+modbrm_tpr_interaction_fullyadjusted <- brm(tpr_react_mc_z ~ stressconds * mindsetconds +
+                                            s1.sex + s1.age + racefactor + pss.baseline + 
+                                            stressmindset.baseline + fixedmindset.baseline +
+                                            bothmindsets.baseline + selfesteem.baseline +
+                                            testanxiety.baseline + (1 | pid), 
+                                         data = dat_long[dat_long$time %in% c(9, 10, 11, 12, 13), ],
+                                         iter = 6000, warmup = 3000)
+summary(modbrm_tpr_interaction_fullyadjusted)
 
+final_table_bayesian_interactions <- data.frame(
+  Comparison = c("Stress, main effect", 
+                 "Growth, main effect",
+                 "Interaction"),
+  Estimate = c(round(resultsbrm_SynergisticStressvsgrowth["b_cond.factorSynergistic", "Estimate"], 2),
+               round(resultsbrm_Synergisticvsstress["b_cond.factorSynergistic", "Estimate"], 2),
+               round(resultsbrm_SynergisticStressGrowthvscontrol["b_cond.factorSynergistic", "Estimate"], 2)),
+  CI_95 = c(paste0("[",round(resultsbrm_SynergisticStressvsgrowth["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(resultsbrm_SynergisticStressvsgrowth["b_cond.factorSynergistic", "Q97.5"],2),"]"),
+            paste0("[",round(resultsbrm_Synergisticvsstress["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(resultsbrm_Synergisticvsstress["b_cond.factorSynergistic", "Q97.5"],2),"]"),
+            paste0("[",round(resultsbrm_SynergisticStressGrowthvscontrol["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(resultsbrm_SynergisticStressGrowthvscontrol["b_cond.factorSynergistic", "Q97.5"],2),"]")))
+
+print(final_table_bayesian_interactions)
+
+## Frequentist analysis
+
+mod_tpr_interaction_fullyadjusted <- lmer(tpr_react_mc_z ~ stressconds * mindsetconds +
+                                            s1.sex + s1.age + racefactor + pss.baseline + 
+                                            stressmindset.baseline + fixedmindset.baseline +
+                                            bothmindsets.baseline + selfesteem.baseline +
+                                            testanxiety.baseline + (1 | pid), data = dat_long[dat_long$time %in% c(9, 10, 11, 12, 13), ])
+summary(mod_tpr_interaction_fullyadjusted)
+
+final_table_lmer_interaction <- bind_rows(
+  table_results(mod_tpr_interaction_fullyadjusted, "Stress, main effect", "stressconds1"),
+  table_results(mod_tpr_interaction_fullyadjusted, "Growth, main effect", "mindsetconds1"),
+  table_results(mod_tpr_interaction_fullyadjusted, "Interaction", "stressconds1:mindsetconds1"))
+
+print(final_table_lmer_interaction)
