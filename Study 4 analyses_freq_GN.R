@@ -134,23 +134,27 @@ mean_tpr <- dat_long %>%
 
 ## Plot
 plot1 <- ggplot(mean_tpr, aes(x = epoch, y = mean_TPR, color = cond.factor, group = cond.factor)) +
-  geom_line(size = 1) +
-  geom_point(size = 2) +
+  geom_line(size = 2) +
+  geom_point(size = 3) +
   geom_errorbar(aes(ymin = mean_TPR - se_TPR, ymax = mean_TPR + se_TPR), width = 0.05) + 
   scale_x_discrete(labels = c("baseline" = "Baseline", "speech" = "Post")) + 
   scale_color_manual(values = c("#488f31", "#2C3E50", "#F4A300", "#F4665C")) +  
   scale_fill_manual(values = c("#488f31", "#2C3E50", "#F4A300", "#F4665C")) +
-  labs(x = "Time",
-       y = "Mean TPR",
+  labs(x = "\nTime",
+       y = "Mean TPR\n",
        color = "Condition", 
        fill = "Condition") +
   theme_minimal() + 
   theme(legend.position = "top",
-        axis.title = element_text(size = 12),
-        axis.text = element_text(size = 10),
+        legend.box.just = "left",
+        plot.margin = margin(20, 40, 10, 10),
+        axis.title = element_text(size = 21),
+        axis.text = element_text(size = 21),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20),
         panel.grid = element_blank(), 
-        axis.line = element_line(size = 0.1),
-        axis.ticks = element_line(size = 0.1))
+        axis.line = element_line(size = 0.6),
+        axis.ticks = element_line(size = 0.6))
   
 ggsave(filename = "Plot_meanTPR_baselinevspost.png",plot = plot1, width = 8, height = 6, dpi = 300)
 
@@ -308,18 +312,20 @@ modbrm_tpr_interaction_fullyadjusted <- brm(tpr_react_mc_z ~ stressconds * minds
                                          iter = 6000, warmup = 3000)
 summary(modbrm_tpr_interaction_fullyadjusted)
 
-final_table_bayesian_interactions <- data.frame(
+resultsbrm_interaction <- posterior_summary(modbrm_tpr_interaction_fullyadjusted)
+
+final_table_bayesian   <- data.frame(
   Comparison = c("Stress, main effect", 
                  "Growth, main effect",
                  "Interaction"),
-  Estimate = c(round(resultsbrm_SynergisticStressvsgrowth["b_cond.factorSynergistic", "Estimate"], 2),
-               round(resultsbrm_Synergisticvsstress["b_cond.factorSynergistic", "Estimate"], 2),
-               round(resultsbrm_SynergisticStressGrowthvscontrol["b_cond.factorSynergistic", "Estimate"], 2)),
-  CI_95 = c(paste0("[",round(resultsbrm_SynergisticStressvsgrowth["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(resultsbrm_SynergisticStressvsgrowth["b_cond.factorSynergistic", "Q97.5"],2),"]"),
-            paste0("[",round(resultsbrm_Synergisticvsstress["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(resultsbrm_Synergisticvsstress["b_cond.factorSynergistic", "Q97.5"],2),"]"),
-            paste0("[",round(resultsbrm_SynergisticStressGrowthvscontrol["b_cond.factorSynergistic", "Q2.5"], 2), ";", round(resultsbrm_SynergisticStressGrowthvscontrol["b_cond.factorSynergistic", "Q97.5"],2),"]")))
+  Estimate = c(round(resultsbrm_interaction["b_stressconds1", "Estimate"], 2),
+               round(resultsbrm_interaction["b_mindsetconds1", "Estimate"], 2),
+               round(resultsbrm_interaction["b_stressconds1:mindsetconds1", "Estimate"], 2)),
+  CI_95 = c(paste0("[",round(resultsbrm_interaction["b_stressconds1", "Q2.5"], 2), ";", round(resultsbrm_interaction["b_stressconds1", "Q97.5"],2),"]"),
+            paste0("[",round(resultsbrm_interaction["b_mindsetconds1", "Q2.5"], 2), ";", round(resultsbrm_interaction["b_mindsetconds1", "Q97.5"],2),"]"),
+            paste0("[",round(resultsbrm_interaction["b_stressconds1:mindsetconds1", "Q2.5"], 2), ";", round(resultsbrm_interaction["b_stressconds1:mindsetconds1", "Q97.5"],2),"]")))
 
-print(final_table_bayesian_interactions)
+print(final_table_bayesian )
 
 ## Frequentist analysis
 
